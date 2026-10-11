@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 
 import socket    # Basic TCP/IP communication on the internet
 import _thread   # Response computation runs concurrently with main program
+import os        # need this for part A and B
 
 
 def listen(portnum):
@@ -90,13 +91,51 @@ def respond(sock):
     log.info("Request was {}\n***\n".format(request))
 
     parts = request.split()
-    if len(parts) > 1 and parts[0] == "GET":
-        transmit(STATUS_OK, sock)
-        transmit(CAT, sock)
-    else:
+
+    # Check if its invalid first, ALWAYS. Original "if" was a hazard ngl
+    if len(parts) < 2 or parts[0] != "GET":
         log.info("Unhandled request: {}".format(request))
         transmit(STATUS_NOT_IMPLEMENTED, sock)
         transmit("\nI don't handle this request: {}\n".format(request), sock)
+        sock.shutdown(socket.SHUT_RDWR)
+        sock.close()
+        return
+    
+    path = parts[1]
+    
+    # Part C
+    if path.startswith("/~") or path.startswith("/..") or "//" in path:
+        log.warning("Forbidden request blocked: {}".format(path))
+        transmit(STATUS_FORBIDDEN, sock)
+        transmit("403 Forbidden: Access denied.\n", sock)
+        sock.shutdown(socket.SHUT_RDWR)
+        sock.close()
+        return
+    
+    options = config.configuration()
+    DOCROOT = getattr(options, "DOCROOT", "./pages")
+    
+    clean_path = path.lstrip("/")
+    
+    full_path = os.path.join(DOCROOT, clean_path)
+    
+    # Part A
+    if full_path.endswith(".html") or full_path.endswith(".css"):
+        if (os.path.isfile(full_path)):
+            log.info("Sending contents of file: {}".format(full_path))
+            transmit(STATUS_OK, sock)
+            with open(full_path, "r", encoding="utf-8") as file:
+                file_content = file.read()
+                transmit(file_content, sock)
+        # Part B
+        else:
+            log.warning("File could not be found: {}".format(full_path))
+            transmit(STATUS_NOT_FOUND, sock)
+            transmit("404 Not Found: The file you are searching for doesn't exist.\n", sock)
+    # ends with something not implemented yet
+    else:
+        transmit(STATUS_NOT_IMPLEMENTED, sock)
+        transmit("401 Not Implemented: At the moment, we only take .html and .css.\n", sock)
 
     sock.shutdown(socket.SHUT_RDWR)
     sock.close()
