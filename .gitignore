@@ -5,3 +5,7 @@ credentials.ini
 # Ignore OS and sys files
 .DS_Store
 Thumbs.db
+
+# python stuff
+__pycache__/
+*.py[cod]
